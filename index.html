@@ -76,6 +76,13 @@
   .role .body .txt{background:var(--ink-2);border:1px solid var(--line);
     border-left:2px solid var(--seat-c);border-radius:3px 12px 12px 12px;
     padding:11px 13px;font-size:15px;line-height:1.65;color:var(--bone)}
+  .role .body .txt p{margin:0 0 6px}
+  .role .body .txt p:last-child{margin-bottom:0}
+  .role .body .txt strong{color:var(--seat-c);font-weight:600}
+  .role .body .txt code{font-family:ui-monospace,Menlo,monospace;font-size:13px;
+    background:var(--ink-3);padding:1px 5px;border-radius:4px;color:var(--brass-soft)}
+  .role .body .txt ul{margin:5px 0;padding-left:18px}
+  .role .body .txt li{margin:2px 0}
   .me{display:flex;justify-content:flex-end}
   .me .txt{background:#34302a;color:#f1ede2;border-radius:12px 3px 12px 12px;
     padding:11px 13px;max-width:80%;font-size:15px;line-height:1.6}
@@ -128,6 +135,18 @@
   .optcard.sel .ol::before{content:"✓ ";color:var(--seat-c,var(--brass))}
   .optgo{margin-top:3px;align-self:flex-start;background:var(--brass);color:#1a1305;border:0;
     border-radius:999px;padding:8px 18px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer}
+  .pillrow{display:flex;flex-wrap:wrap;gap:8px}
+  .pillbtn{cursor:pointer;background:var(--ink-2);color:var(--bone);border:1px solid var(--seat-c,var(--brass));
+    border-radius:999px;padding:8px 16px;font-family:var(--sans);font-size:14px;line-height:1.2}
+  .pillbtn:active{background:color-mix(in srgb,var(--seat-c,var(--brass)) 26%,var(--ink-2))}
+  .detail{align-self:flex-start;background:transparent;border:1px dashed var(--line-2);color:var(--bone-soft);
+    font-family:var(--sans);font-size:12px;padding:5px 13px;border-radius:999px;cursor:pointer;margin-top:1px}
+  .detail:active{color:var(--bone)}
+  .unsure{cursor:pointer;background:transparent;border:1px dashed var(--bone-dim);color:var(--bone-soft);
+    border-radius:999px;padding:7px 14px;font-family:var(--sans);font-size:13px;line-height:1.2}
+  .unsure.block{align-self:flex-start;margin-top:2px}
+  .unsure:active{color:var(--bone)}
+  .unsure.muted{opacity:.5;cursor:default;border-style:solid}
   .gateq{text-align:center;color:var(--bone-soft);font-size:14px;max-width:330px;margin:4px auto 10px}
   .gateq b{color:var(--bone);font-weight:600}
 
@@ -224,9 +243,10 @@ const ROLES = [
    sys:`你叫"理性裁判"，决策圆桌里最冷的那个人。你像个行为经济学家，专盯人脑子里的鬼——沉没成本、确认偏误、锚定、过度自信、从众。你不太提问，你更像在做诊断：直接当面点名你嗅到的那个偏误，安静、精准、稍微让人发毛。你会说："你不是在分析它，你是在为已经砸进去的钱找理由——这叫沉没成本。"你从不安慰人，你只把镜子举到对方脸前。`},
 ];
 
-const state = { mode:"train", phase:-2, decision:"", log:[], busy:false, turns:{}, locks:{}, brief:{}, gate:0 };
+const state = { mode:"train", phase:-2, decision:"", log:[], busy:false, turns:{}, locks:{}, brief:{}, gate:0, detailN:0, lastDetail:"", curOpts:null };
 /* phase: -2 取决策 / -1 立案闸门 / 0..5 六守门人 / 6 待生成 / 7 备忘录 */
-const MAX_TURNS = 4;  // 每席最多盘问轮数，到顶强制放行
+const MAX_TURNS = 4;    // 每席最多盘问轮数，到顶强制放行
+const DETAIL_MAX = 2;   // 每条极简发言最多展开次数
 
 /* ── 立案闸门：客观、点选、不可糊弄（替代主观的"有没有意愿/资源"）── */
 const GATE = [
@@ -258,12 +278,25 @@ function scroll(){thread.scrollTop=thread.scrollHeight;}
 function addCoach(text){
   thread.appendChild(elFrom(`<div class="msg coach"><span class="tag">决策引导者</span>${text}</div>`));scroll();}
 const MOVE_LABEL={追问:"深度追问",给参考:"给参考",提反对:"提反对",确认:"锁定"};
+/* 极简 markdown：加粗 / 行内代码 / 无序·有序列表 / 段落 */
+function md(t){
+  let s=esc((t||"").trim());
+  s=s.replace(/`([^`]+)`/g,'<code>$1</code>').replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>');
+  const lines=s.split("\n"); const out=[]; let inList=false;
+  const close=()=>{ if(inList){out.push("</ul>");inList=false;} };
+  for(const ln of lines){
+    const li=ln.match(/^\s*(?:[-*]|\d+[.)])\s+(.*)$/);
+    if(li){ if(!inList){out.push("<ul>");inList=true;} out.push("<li>"+li[1]+"</li>"); }
+    else { close(); if(ln.trim()) out.push("<p>"+ln+"</p>"); }
+  }
+  close(); return out.join("");
+}
 function addRole(r,text,move){
   const tag = move&&MOVE_LABEL[move] ? `<span class="move">${MOVE_LABEL[move]}</span>` : "";
   thread.appendChild(elFrom(`<div class="msg role" style="--seat-c:${r.color}">
     <div class="av">${r.glyph}</div>
     <div class="body"><div class="who"><span class="nm">${r.name}</span><span class="al">${r.alias}</span>${tag}</div>
-    <div class="txt">${esc(text)}</div></div></div>`));scroll();}
+    <div class="txt">${md(text)}</div></div></div>`));scroll();}
 function addLock(r,lock){
   thread.appendChild(elFrom(`<div class="msg"><div class="lock">
     <div class="ic">✓</div><div class="lk"><b>${r.name} · 已锁定</b>${esc(lock||r.need)}</div></div></div>`));scroll();}
@@ -296,19 +329,23 @@ async function askLLM(system, userText, maxTok=1000, temp=1){
   return (data.choices?.[0]?.message?.content||"").trim();
 }
 
-function transcript(){
+function transcript(scope){   // scope==='role'：精简（前席锁定 + 本席对话）；否则全量（书记官拟稿用）
   let t=`【决策议题】${state.decision}\n`;
   if(state.brief.authority||state.brief.reversible)
     t+=`【立案】拍板权：${state.brief.authority||"未明"}；可逆性：${state.brief.reversible||"未明"}\n`;
-  state.log.forEach(e=>{ t+= `${e.who}：${e.text}\n`; });
   const locked=ROLES.filter(r=>state.locks[r.key]).map(r=>`${r.name} 锁定 → ${state.locks[r.key]}`);
-  if(locked.length) t+=`\n【已锁定的结论】\n`+locked.join("\n")+"\n";
+  if(locked.length) t+=`\n【前面各席已锁定的结论】\n`+locked.join("\n")+"\n";
+  const lines = scope==="role" ? state.log.filter(e=>e.phase===state.phase) : state.log;
+  if(lines.length){
+    t+=`\n【${scope==="role"?"本席对话":"全程对话"}】\n`;
+    lines.forEach(e=>{ t+= `${e.who}：${e.text}\n`; });
+  }
   return t;
 }
 function modeRider(){
   return state.mode==="train"
-   ? `\n[训练模式] 撂完狠话，可以多补一句大白话，点一下"我为什么死盯这一点"，帮决策人学到方法——但别破坏你的人设。`
-   : `\n[真实模式] 你就是会议室里那个真实的利益相关方，全程代入立场、带着情绪施压，不解释方法论。`;
+   ? `\n[训练模式] 你的底色是带点教练感的引导者；该解释方法时（尤其展开时）多帮决策人学到东西。`
+   : `\n[真实模式] 你就是会议室里那个带情绪的利益相关方，代入立场，不解释方法论。`;
 }
 
 function turnSystem(r, turnNo){
@@ -325,28 +362,32 @@ ${r.criteria}
 
 别每轮都用追问。决策人含糊就追问，答得离谱就提反对，卡住了就给参考，达标了就确认——手法要随他的回答切换。
 
-[什么时候给选项卡片]
-当你用「给参考」、或在逼一个取舍／选方向时，优先把可能的答案做成选项让决策人直接点选，别让他干想：
-- 给 2-4 个具体、彼此不同的选项，每个配一句极短说明；尽量塞一个反直觉的、或"维持现状／什么都不做"的选项。
-- 单选用于"选一个方向／二选一"；多选用于"勾选适用的多项"（如哪几条其实只是假设、哪几个人必须点头）。
-- 决策人连着两轮还答不到点上，这一轮务必改用「给参考」并给出选项，别再纯追问干耗。
-- 不是每轮都给选项；纯追问、提反对、收尾时通常不给。给选项时，发言里自然地把话头引到选项上。
+[选项——硬规则，最重要]
+只要你这一轮是在让决策人从两个或多个【具体选项】里挑，就【必须】给出对应的〔选项〕，把那几个选择原样列出来让他点——绝不允许只在发言里抛出"二选一／选一个／是A还是B／哪一个／哪块"却不给选项、逼他打字。这条**不分手法**：追问、提反对、给参考，只要话里带了让他挑的选择，就都要配〔选项〕。
+- 选项就是你发言里让他选的那几项本身，标签尽量短；纯选择题不必加说明（会渲染成药丸按钮，一点即答）。
+- 单选用于"二选一／选一个方向"；多选用于"勾选适用的多项"（如哪几条只是假设、哪几个人要点头）。
+- 决策人卡住、答不到点上时改用「给参考」，给 2-4 个含"维持现状／什么都不做"的具体选项。
+- 只有当这一轮是开放式追问（没有让他在明确选项里挑）时，才不给选项。
+示例（取舍官）：发言「降成本可以。你先从**哪块**开刀？」→ 必须跟上 〔选项〕单选 / - 砍掉ROI最差的渠道 / - 停掉只买量、不带转化的品牌曝光投放。
 
 [节奏] 这一席会进行多轮，你不必一轮就逼到底。没满足过关标准前，「过关」一律为否，继续推进；真满足了才标「过关：是」。这是你这一席的第 ${turnNo} 轮。如果前面别的守门人刚锁定了某个结论，你的开场可以顺着它接话。
 
-[输出格式] 严格按下面的标记输出，不要用 JSON、不要 markdown、不要反引号。前三行各占一行；「发言」放最后、可多行；「选项」可有可无、放在最末：
+[发言风格——极简优先] 默认用最精简的语言：通常就一句话，点出你这一轮的核心问题或判断，最多两句。可以用 markdown 加粗关键词（像 **这样**），是取舍/选择题就把选项做成下面的〔选项〕。**不要寒暄、不要铺陈、不要解释"为什么"**——决策人想听理由，会点"说详细"，那时你再展开。保持你这一席的关注点，但语言克制，别为了演性格而啰嗦。
+举例（目标官该有的极简程度）：「利润从 500 万拉到 1000 万，核心增长靠 **单用户贡献值** 还是 **更多用户数**？」——然后把这两个做成单选选项。
+
+[输出格式] 严格按下面的标记输出，不要用反引号包裹。前三行各占一行；「发言」放最后；「选项」可有可无、放在最末：
 〔手法〕在 追问 / 给参考 / 提反对 / 确认 里四选一
 〔过关〕否 或 是
 〔锁定〕「过关」为是时写下锁定的具体结论（如 北极星指标：月留存40%→45%、6个月内）；为否时此行留空
-〔发言〕你这一轮要对决策人说的话——保持性格脾气，咬住他说的具体内容，中文口语 2-4 句，绝不分点、绝不复述框架、绝不寒暄。自由文本，可放心用任何标点和引号。
+〔发言〕极简的中文，可用 markdown 加粗；不分点铺陈、不寒暄。自由文本，可放心用任何标点和引号。
 〔选项〕单选 或 多选（不给选项时整行连同下面的条目一起省略）
-- 选项标签｜一句极短说明
-- 选项标签｜说明`;
+- 选项标签｜说明（说明能省则省，纯选择题就只给标签，会渲染成药丸按钮）
+- 选项标签`;
 }
 
 async function askRole(r, turnNo){
   const raw = await askLLM(turnSystem(r,turnNo),
-    transcript()+`\n现在是你（${r.name}）发言。`, 1000, 0.8);
+    transcript("role")+`\n现在是你（${r.name}）发言。`, 1000, 0.8);
   const M="〔发言〕", idx=raw.indexOf(M);
   const head = idx>=0 ? raw.slice(0,idx) : raw;
   let rest = idx>=0 ? raw.slice(idx+M.length) : raw;
@@ -383,7 +424,7 @@ async function roleTurn(i){
     const o=await askRole(r, state.turns[i]);
     ph.remove();
     addRole(r, o.say, o.move);
-    state.log.push({who:r.name, text:o.say});
+    state.log.push({who:r.name, text:o.say, phase:state.phase});
     const capped = state.turns[i]>=MAX_TURNS;        // 到顶强制收尾
     if(o.done || capped){
       const lock = o.lock || r.need;
@@ -391,7 +432,11 @@ async function roleTurn(i){
       advanceFrom(i, o.done);
     }else{
       input.placeholder=`回应${r.name}…`;
-      if(o.opts) addOptions(r, o.opts);                // 角色给了选项 → 渲染可点卡片
+      state.detailN=0; state.lastDetail="";            // 新极简发言 → 重置展开计数
+      let opts = o.opts || await maybeExtractOpts(o.say);   // 漏给选项的选择题 → 自动补成药丸
+      state.curOpts = opts || null;
+      if(opts) addOptions(r, opts, i);                 // 含「我也不确定」入口
+      else addDetailBtn(i);                            // 开放式追问 → 独立的「说详细点」
       if(i===5) showFinish();                          // 最后一席：说完即可一键收官
       else if(state.turns[i]>=2) showSkip(i);          // 其余席：聊过两轮给个手动放行口
     }
@@ -433,22 +478,60 @@ function showFinish(){
     state.phase=6; renderSeats(); buildMemo(); };
   thread.appendChild(n); scroll();
 }
-function clearSkip(){ ["#skipBtn","#finishBtn"].forEach(id=>{const b=$(id); if(b) b.remove();}); }
+function clearSkip(){ ["#skipBtn","#finishBtn","#detailBtn"].forEach(id=>{const b=$(id); if(b) b.remove();}); }
 
-/* ── 选项卡片 ── */
-function addOptions(r, opts){
+/* ── 「说详细点」：让角色把刚才的极简发言展开讲透 ── */
+function addDetailBtn(i){
+  const old=$("#detailBtn"); if(old) old.remove();
+  let n;
+  if(state.detailN>=DETAIL_MAX){
+    n=elFrom(`<div class="detail" id="detailBtn" style="opacity:.55">已经讲得挺细了 · 直接作答或换个问法</div>`);
+  } else {
+    n=elFrom(`<button class="detail" id="detailBtn">💬 让${ROLES[i].name}说详细点</button>`);
+    n.onclick=()=>{ if(state.busy) return; explainMore(i); };
+  }
+  thread.appendChild(n); scroll();
+}
+async function explainMore(i, help){
+  if(state.detailN>=DETAIL_MAX || state.busy) return;
+  state.detailN++;
+  const r=ROLES[i];
+  if(!help){ const b=$("#detailBtn"); if(b) b.remove(); }   // 按钮入口移除按钮；不确定入口保留选项不动
+  const ph=addThinking(r); setBusy(true);
+  try{
+    const avoid = state.lastDetail ? `\n（你上次已这样展开过，换个角度补充、别重复：${state.lastDetail}）` : "";
+    const ask = help
+      ? `${r.sys}${modeRider()}\n[帮他拿主意] 决策人拿不准、选不下去。别再追问——把刚才那几个选项掰开比给他听：每个选项分别意味着什么、各自的代价、什么情况下该选哪个，帮他自己拿定主意，但别替他拍板。最后把球轻轻踢回去（如"这么看，你更偏哪个？"）。可口语带性格、可用 markdown，点到为止。`
+      : `${r.sys}${modeRider()}\n[展开要求] 决策人点了"说详细点"。把你上一句精简发言讲透：为什么这么问、关键区别是什么、什么场景该怎么选。可口语、带性格、可用 markdown，但点到为止、别又臭又长。不要重复原句，直接展开。`;
+    const txt=await askLLM(ask, transcript("role")+avoid+`\n你（${r.name}）刚才那句太简了，现在展开讲清楚。`, 1200, 0.85);
+    ph.remove();
+    addRole(r, txt, "给参考");
+    state.lastDetail = txt;        // 仅暂存供防重复，不写入 log、不进后续上下文
+    if(help) refreshUnsure(); else addDetailBtn(i);
+  }catch(e){ ph.remove(); state.detailN--; showErr(()=>explainMore(i, help)); }
+  setBusy(false);
+}
+
+/* ── 选项（单选无说明→药丸；其余→卡片；多选→可勾选+确定） ── */
+function addOptions(r, opts, i){
   clearOptions();
   const multi = opts.mode==="多选";
+  const asPill = !multi && opts.items.every(it=>!it.note);
   const wrap=document.createElement("div");
-  wrap.className="msg opts"; wrap.id="optsBox";
+  wrap.className="msg opts"+(asPill?" pillrow":""); wrap.id="optsBox";
   if(r) wrap.style.setProperty("--seat-c", r.color);
   opts.items.forEach(it=>{
     const val = it.label + (it.note?("（"+it.note+"）"):"");
     const card=document.createElement("button");
-    card.className="optcard"; card.dataset.val=val;
-    card.innerHTML=`<span class="ol">${esc(it.label)}</span>${it.note?`<span class="on">${esc(it.note)}</span>`:""}`;
-    if(multi){ card.onclick=()=>card.classList.toggle("sel"); }
-    else { card.onclick=()=>{ if(state.busy) return; submitChoice(val); }; }
+    card.dataset.val=val;
+    if(asPill){ card.className="pillbtn"; card.textContent=it.label;
+      card.onclick=()=>{ if(state.busy) return; submitChoice(val); }; }
+    else {
+      card.className="optcard";
+      card.innerHTML=`<span class="ol">${esc(it.label)}</span>${it.note?`<span class="on">${esc(it.note)}</span>`:""}`;
+      if(multi){ card.onclick=()=>card.classList.toggle("sel"); }
+      else { card.onclick=()=>{ if(state.busy) return; submitChoice(val); }; }
+    }
     wrap.appendChild(card);
   });
   if(multi){
@@ -458,10 +541,37 @@ function addOptions(r, opts){
       if(sel.length) submitChoice(sel.join("；")); };
     wrap.appendChild(go);
   }
+  if(i!=null){   // 「我也不确定」：触发面向决策的解释，不消费选择、选项保持原样
+    const uns=document.createElement("button");
+    uns.className="unsure"+(asPill?"":" block"); uns.id="unsureBtn"; uns.textContent="🤔 我也不确定";
+    uns.onclick=()=>{ if(state.busy) return; explainMore(i, true); };
+    wrap.appendChild(uns);
+  }
   thread.appendChild(wrap); scroll();
+}
+function refreshUnsure(){
+  const u=$("#unsureBtn"); if(!u) return;
+  if(state.detailN>=DETAIL_MAX){
+    u.textContent="🤔 还拿不准？先选个倾向，或在下面跳过"; u.classList.add("muted"); u.onclick=null;
+  }
 }
 function clearOptions(){ const b=$("#optsBox"); if(b) b.remove(); }
 function submitChoice(text){ clearOptions(); onSubmit(text); }
+
+/* 兜底：发言是选择题、却没给〔选项〕时，让模型把选项抽出来 */
+const CHOICE_SIG = /(二选一|选一个|选一项|选一条|选一边|你选|哪一个|哪个更|哪块|，还是|、还是|：还是| 还是)/;
+async function maybeExtractOpts(say){
+  if(!CHOICE_SIG.test(say)) return null;
+  try{
+    const raw = await askLLM(
+      `把下面这句话里、要决策人从中挑选的几个【具体选项】抽取出来，每行一个、用「- 选项」格式，标签就是那个选择本身、尽量短。只输出选项行，别的都不要。如果这句其实没有让人在明确选项里二选一/多选，只输出 NONE。`,
+      say, 300, 0);
+    if(/^\s*NONE\s*$/i.test(raw) || /NONE/.test(raw.split("\n")[0])) return null;
+    const items=[];
+    raw.split("\n").forEach(line=>{ const m=line.match(/^\s*[-－·•]\s*(.+)$/); if(m) items.push({label:m[1].trim().slice(0,40), note:""}); });
+    return items.length>=2 ? {mode:"单选", items} : null;
+  }catch(e){ return null; }
+}
 
 /* ── 立案闸门（点选式） ── */
 function runGate(){
@@ -491,20 +601,32 @@ function startCouncil(){
 /* ── 决策备忘录合成 ── */
 const MEMO_SYS = `你是决策圆桌的书记官。根据整场讨论，输出一份结构化的决策备忘录。只输出一个 JSON 对象，不要任何解释、不要 markdown、不要反引号。字段：
 {"decision":"一句话议题","goal":"真正的目标","priority":"优先级取舍：保什么、放弃什么","alternatives":[{"name":"方案名","note":"一句说明"}],"information":{"known":["已知事实"],"assumed":["假设"],"killer":"最关键、错了就崩的那条信息"},"people":{"stakeholders":["关键干系人"],"approver":"拍板前必须先点头的人","executor":"实际落地的人"},"biases":["被点名的认知陷阱"],"dissent":[{"role":"角色名","point":"该角色最强的异议"}],"premortem":"假设一年后这个决策失败了，最可能的原因","recommendation":"综合建议——给决策结构与权衡提示，不替决策人拍板","feedback":{"watch":"接下来要观察的信号或指标","revisit":"何时回看复盘"}}
-所有内容用中文，简洁。字符串内部若要用引号，一律用中文「」，绝不要用英文双引号，以免破坏 JSON。讨论里没覆盖的部分基于已有信息合理补全，实在没有就写"待补充"。alternatives 尽量包含"维持现状/什么都不做"。`;
+所有内容用中文，简洁。字符串内部若要用引号，一律用中文「」，绝不要用英文双引号，以免破坏 JSON。讨论里没覆盖的部分基于已有信息合理补全，实在没有就写"待补充"。alternatives 尽量包含"维持现状/什么都不做"。务必保持紧凑：每个字段尽量短、数组每项一句话，确保整个 JSON 一次性完整输出、不被截断。`;
 
 async function buildMemo(){
   composerHTML(`<div style="width:100%;text-align:center;color:var(--bone-soft);font-size:13px">书记官正在拟稿…</div>`);
   setBusy(true);
   try{
-    let raw=await askLLM(MEMO_SYS, transcript(), 1000, 0.2);
-    raw=raw.replace(/```json|```/g,"").trim();
-    const s=raw.indexOf("{"), e=raw.lastIndexOf("}");
-    if(s>=0&&e>s) raw=raw.slice(s,e+1);
-    const m=JSON.parse(raw);
-    renderMemo(m, raw);
+    const raw = await askLLM(MEMO_SYS, transcript(), 4096, 0.2);   // 不再压 1000，避免 JSON 被截断
+    let m;
+    try{ m = extractJSON(raw); }
+    catch(parseErr){
+      // 自动纠错重试一次：把可能被截断/含非法引号的 JSON 丢回去修
+      const fixed = await askLLM(
+        "你是 JSON 修复器。下面是一段可能被截断、或含未转义英文引号的 JSON。把它修复成一个合法且完整的 JSON 对象，缺失部分按上下文合理补全，字符串内部引号一律用中文「」。只输出 JSON，不要解释、不要 markdown、不要反引号。",
+        raw, 4096, 0);
+      m = extractJSON(fixed);
+    }
+    renderMemo(m, JSON.stringify(m, null, 2));
   }catch(e){ restoreComposerCTA(); showErr(buildMemo); }
   setBusy(false);
+}
+
+function extractJSON(raw){
+  let s = raw.replace(/```json|```/g,"").trim();
+  const a=s.indexOf("{"), b=s.lastIndexOf("}");
+  if(a>=0 && b>a) s=s.slice(a,b+1);
+  return JSON.parse(s);
 }
 
 function renderMemo(m, raw){
@@ -599,7 +721,7 @@ async function onSubmit(text){
     runGate(); return;
   }
   if(state.phase>=0 && state.phase<=5){
-    state.log.push({who:"决策人",text:text});
+    state.log.push({who:"决策人",text:text, phase:state.phase});
     roleTurn(state.phase);   // 同一席继续盘问；达标或到顶时引擎内部自动换人
   }
 }
