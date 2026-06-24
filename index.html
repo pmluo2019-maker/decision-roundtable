@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover">
+<title>决策圆桌</title>
+<style>
+  :root{
+    --ink:#191c23; --ink-2:#22262f; --ink-3:#2c313c;
+    --bone:#e8e4d8; --bone-soft:#a8a496; --bone-dim:#6f6c62;
+    --paper:#efece4; --paper-2:#f7f5f0; --paper-ink:#2a2925;
+    --brass:#b8924c; --brass-soft:#caa86a;
+    --line:rgba(232,228,216,.10); --line-2:rgba(232,228,216,.16);
+    --c-G:#5688b6; --c-P1:#bd7050; --c-A:#74975c;
+    --c-I:#8478ad; --c-P2:#4ea295; --c-O:#76808f;
+    --serif:"Songti SC","STSong","Noto Serif SC","SimSun",serif;
+    --sans:"PingFang SC","Microsoft YaHei","Noto Sans SC","Hiragino Sans GB",sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--ink); color:var(--bone); font-family:var(--sans);
+    font-size:16px; line-height:1.6; overflow:hidden;
+  }
+  #app{display:flex;flex-direction:column;height:100dvh;max-width:480px;margin:0 auto;
+    background:var(--ink);position:relative}
+
+  /* ── header ── */
+  header{padding:14px 18px 12px;border-bottom:1px solid var(--line);display:flex;
+    align-items:center;justify-content:space-between;gap:12px}
+  .brand{display:flex;align-items:baseline;gap:9px}
+  .brand h1{font-family:var(--serif);font-size:21px;font-weight:600;margin:0;letter-spacing:3px}
+  .brand .sub{font-size:11px;color:var(--bone-dim);letter-spacing:1px}
+  .seg{display:flex;border:1px solid var(--line-2);border-radius:999px;overflow:hidden;flex:none}
+  .seg button{appearance:none;border:0;background:transparent;color:var(--bone-soft);
+    font-family:var(--sans);font-size:12px;padding:6px 13px;cursor:pointer;letter-spacing:1px}
+  .seg button.on{background:var(--brass);color:#1a1305;font-weight:600}
+
+  /* ── council strip ── */
+  .council{padding:13px 10px 11px;border-bottom:1px solid var(--line);
+    background:linear-gradient(180deg,#1c2029,#191c23)}
+  .seats{display:flex;justify-content:space-between;gap:4px;padding:0 4px}
+  .seat{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;
+    opacity:.4;transition:opacity .35s,transform .35s}
+  .seat.done{opacity:.62}
+  .seat.active{opacity:1;transform:translateY(-2px)}
+  .av{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;
+    font-family:var(--serif);font-size:18px;color:var(--bone);
+    background:var(--ink-3);border:1.5px solid var(--seat-c,#76808f);position:relative}
+  .seat.active .av{box-shadow:0 0 0 2px var(--ink),0 0 0 4px var(--brass);
+    background:color-mix(in srgb,var(--seat-c) 30%,var(--ink-3))}
+  .seat.done .av::after{content:"";position:absolute;right:-2px;bottom:-2px;width:13px;height:13px;
+    border-radius:50%;background:var(--brass);border:2px solid var(--ink)}
+  .seat .lab{font-size:10px;color:var(--bone-dim);letter-spacing:.5px}
+  .seat.active .lab{color:var(--bone-soft)}
+  .nowline{text-align:center;margin-top:9px;font-size:12px;color:var(--bone-soft);letter-spacing:1px}
+  .nowline b{color:var(--brass-soft);font-weight:600}
+  @media (prefers-reduced-motion: no-preference){
+    .seat.active .av{animation:pulse 2.4s ease-in-out infinite}
+    @keyframes pulse{0%,100%{box-shadow:0 0 0 2px var(--ink),0 0 0 4px var(--brass)}
+      50%{box-shadow:0 0 0 2px var(--ink),0 0 0 4px var(--brass),0 0 14px -2px var(--brass)}}
+  }
+
+  /* ── thread ── */
+  .thread{flex:1;overflow-y:auto;padding:18px 16px 8px;-webkit-overflow-scrolling:touch}
+  .msg{margin-bottom:18px;animation:rise .4s ease both}
+  @keyframes rise{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .coach{text-align:center;color:var(--bone-soft);font-size:13.5px;line-height:1.7;
+    max-width:330px;margin:0 auto 18px;font-style:normal}
+  .coach .tag{display:block;font-size:10.5px;color:var(--bone-dim);letter-spacing:2px;margin-bottom:3px}
+  .role{display:flex;gap:11px}
+  .role .av{flex:none;width:34px;height:34px;font-size:16px}
+  .role .body .who{font-size:12px;margin-bottom:3px;letter-spacing:.5px}
+  .role .body .who .nm{color:var(--seat-c);font-weight:600}
+  .role .body .who .al{color:var(--bone-dim);margin-left:6px}
+  .role .body .txt{background:var(--ink-2);border:1px solid var(--line);
+    border-left:2px solid var(--seat-c);border-radius:3px 12px 12px 12px;
+    padding:11px 13px;font-size:15px;line-height:1.65;color:var(--bone)}
+  .me{display:flex;justify-content:flex-end}
+  .me .txt{background:#34302a;color:#f1ede2;border-radius:12px 3px 12px 12px;
+    padding:11px 13px;max-width:80%;font-size:15px;line-height:1.6}
+  .think{display:inline-flex;gap:4px;padding:4px 0}
+  .think i{width:6px;height:6px;border-radius:50%;background:var(--bone-dim);animation:bl 1.2s infinite}
+  .think i:nth-child(2){animation-delay:.2s}.think i:nth-child(3){animation-delay:.4s}
+  @keyframes bl{0%,80%,100%{opacity:.25}40%{opacity:1}}
+
+  /* ── composer ── */
+  .composer{padding:10px 12px calc(10px + env(safe-area-inset-bottom));
+    border-top:1px solid var(--line);display:flex;gap:9px;align-items:flex-end;background:var(--ink)}
+  .composer textarea{flex:1;resize:none;background:var(--ink-2);color:var(--bone);
+    border:1px solid var(--line-2);border-radius:18px;padding:10px 14px;font-family:var(--sans);
+    font-size:16px;line-height:1.5;max-height:120px;outline:none}
+  .composer textarea:focus{border-color:var(--brass)}
+  .composer textarea::placeholder{color:var(--bone-dim)}
+  .send{flex:none;width:42px;height:42px;border-radius:50%;border:0;background:var(--brass);
+    color:#1a1305;font-size:19px;cursor:pointer;display:grid;place-items:center}
+  .send:disabled{opacity:.4}
+  .cta{width:100%;padding:14px;border:0;border-radius:12px;background:var(--brass);
+    color:#1a1305;font-family:var(--serif);font-size:16px;font-weight:600;letter-spacing:3px;cursor:pointer}
+  .cta.ghost{background:transparent;border:1px solid var(--line-2);color:var(--bone-soft);
+    font-family:var(--sans);font-weight:400;letter-spacing:1px;font-size:13px;padding:9px}
+  .err{background:#3a2622;border:1px solid #6b3c33;color:#f0cabf;font-size:13px;
+    padding:10px 13px;border-radius:8px;margin:0 auto 14px;max-width:340px;line-height:1.6}
+  .err button{margin-top:7px;background:#6b3c33;border:0;color:#f0cabf;padding:5px 12px;
+    border-radius:6px;font-size:12px;cursor:pointer}
+  .move{display:inline-block;font-size:10px;letter-spacing:1px;padding:1px 7px;border-radius:999px;
+    border:1px solid var(--seat-c);color:var(--seat-c);margin-left:7px;vertical-align:middle;opacity:.85}
+  .lock{display:flex;align-items:center;gap:9px;margin:2px auto 18px;max-width:340px;
+    background:#2c2a22;border:1px solid var(--brass);border-radius:8px;padding:9px 12px}
+  .lock .ic{flex:none;width:20px;height:20px;border-radius:50%;background:var(--brass);color:#1a1305;
+    display:grid;place-items:center;font-size:12px}
+  .lock .lk{font-size:13px;line-height:1.5;color:var(--brass-soft)}
+  .lock .lk b{display:block;font-size:10px;letter-spacing:2px;color:var(--bone-dim);margin-bottom:1px;font-weight:400}
+  .skip{display:block;margin:0 auto 16px;background:transparent;border:1px dashed var(--line-2);
+    color:var(--bone-dim);font-family:var(--sans);font-size:12px;padding:6px 14px;border-radius:999px;cursor:pointer}
+  .skip:active{color:var(--bone-soft)}
+  .skip.finish{border:0;background:var(--brass);color:#1a1305;font-weight:600;font-size:13px;padding:9px 18px}
+  .skip.finish:active{color:#1a1305;opacity:.85}
+  .opts{margin:-6px 0 18px 45px;display:flex;flex-direction:column;gap:7px}
+  .gate .opts{margin:0 auto 18px;max-width:360px}
+  .optcard{display:flex;flex-direction:column;gap:2px;text-align:left;width:100%;cursor:pointer;
+    background:var(--ink-2);border:1px solid var(--line-2);border-left:2px solid var(--seat-c,var(--brass));
+    border-radius:3px 10px 10px 3px;padding:10px 13px;font-family:var(--sans);color:var(--bone)}
+  .optcard .ol{font-size:14.5px;line-height:1.4}
+  .optcard .on{font-size:12.5px;color:var(--bone-soft);line-height:1.45}
+  .optcard:active{background:var(--ink-3)}
+  .optcard.sel{background:color-mix(in srgb,var(--seat-c,var(--brass)) 22%,var(--ink-2));border-color:var(--seat-c,var(--brass))}
+  .optcard.sel .ol::before{content:"✓ ";color:var(--seat-c,var(--brass))}
+  .optgo{margin-top:3px;align-self:flex-start;background:var(--brass);color:#1a1305;border:0;
+    border-radius:999px;padding:8px 18px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer}
+  .gateq{text-align:center;color:var(--bone-soft);font-size:14px;max-width:330px;margin:4px auto 10px}
+  .gateq b{color:var(--bone);font-weight:600}
+
+  /* ── memo ── */
+  .memo-wrap{position:absolute;inset:0;background:var(--paper);color:var(--paper-ink);
+    overflow-y:auto;z-index:5;font-family:var(--serif);-webkit-overflow-scrolling:touch}
+  .memo{padding:26px 22px 40px;max-width:480px;margin:0 auto}
+  .memo .top{text-align:center;border-bottom:2px solid var(--paper-ink);padding-bottom:14px;margin-bottom:6px}
+  .memo .top .k{font-size:11px;letter-spacing:5px;color:#8a857a;font-family:var(--sans)}
+  .memo .top h2{font-size:26px;margin:6px 0 2px;letter-spacing:6px;font-weight:600}
+  .memo .deci{font-size:17px;text-align:center;margin:16px 0 22px;line-height:1.6;color:#1f1e1a}
+  .memo .deci span{display:block;font-size:11px;letter-spacing:3px;color:#8a857a;
+    font-family:var(--sans);margin-bottom:6px}
+  .sec{margin-bottom:20px}
+  .sec h3{font-size:15px;letter-spacing:2px;margin:0 0 9px;padding-bottom:5px;
+    border-bottom:1px solid #d8d3c6;display:flex;align-items:baseline;gap:8px}
+  .sec h3 em{font-style:normal;font-family:var(--sans);font-size:10px;letter-spacing:2px;color:#9a948760}
+  .sec h3 em{color:#a39c8c}
+  .sec .bd{font-family:var(--sans);font-size:14.5px;line-height:1.75;color:#2f2d28}
+  .kv{margin:3px 0}.kv b{font-weight:600;color:#1f1e1a}
+  .pill{display:inline-block;font-family:var(--sans);font-size:12px;background:#e2ddd0;
+    border-radius:4px;padding:3px 9px;margin:3px 5px 0 0;color:#4a463c}
+  .pill.warn{background:#ecdcbe;color:#7a5a1c}
+  .alt{border-left:2px solid var(--brass);padding:2px 0 2px 11px;margin:9px 0;font-family:var(--sans);font-size:14px}
+  .alt b{display:block;font-size:14.5px;color:#1f1e1a;margin-bottom:1px}
+  .alt .n{color:#5d594d}
+  .diss{font-family:var(--sans);font-size:14px;margin:7px 0;padding-left:11px;border-left:2px solid #c2654a}
+  .diss b{color:#a04e34}
+  .killer{font-family:var(--sans);background:#ece1d6;border:1px dashed #b8924c;border-radius:6px;
+    padding:9px 11px;font-size:13.5px;color:#5e4a28;margin-top:7px}
+  .seal{margin:24px auto 0;width:104px;height:104px;border:2.5px solid var(--brass);border-radius:50%;
+    display:grid;place-items:center;text-align:center;color:var(--brass);transform:rotate(-7deg);
+    box-shadow:inset 0 0 0 4px var(--paper),inset 0 0 0 5px #b8924c40}
+  .seal b{font-size:19px;letter-spacing:3px;line-height:1.25;font-weight:600}
+  .seal s{display:block;text-decoration:none;font-size:9px;letter-spacing:2px;font-family:var(--sans);margin-top:4px}
+  .memo .foot{text-align:center;font-family:var(--sans);font-size:11px;color:#9a9487;margin-top:14px;letter-spacing:1px}
+  .memo .actions{margin-top:26px;display:flex;flex-direction:column;gap:10px}
+  .memo .actions button{font-family:var(--sans);padding:12px;border-radius:10px;font-size:14px;cursor:pointer;border:0}
+  .memo .actions .pri{background:var(--paper-ink);color:var(--paper)}
+  .memo .actions .sec2{background:transparent;border:1px solid #c9c3b4;color:#5d594d}
+  .raw{font-family:ui-monospace,Menlo,monospace;font-size:11px;background:#22201c;color:#cfc9ba;
+    padding:12px;border-radius:8px;overflow-x:auto;white-space:pre;line-height:1.5;display:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="brand"><h1>决策圆桌</h1><span class="sub">GPA · IPO</span></div>
+    <div class="seg" id="modeSeg">
+      <button data-m="train" class="on">训练</button>
+      <button data-m="real">真实</button>
+    </div>
+  </header>
+
+  <div class="council">
+    <div class="seats" id="seats"></div>
+    <div class="nowline" id="nowline">入席中…</div>
+  </div>
+
+  <div class="thread" id="thread"></div>
+
+  <div class="composer" id="composer">
+    <textarea id="input" rows="1" placeholder="说说你正在做的决策…"></textarea>
+    <button class="send" id="send" aria-label="发送">↑</button>
+  </div>
+</div>
+
+<script>
+/* ── 六守门人定义（GPA + IPO）── */
+const ROLES = [
+  {key:"G", glyph:"目", name:"目标官", alias:"北极星", color:"var(--c-G)", el:"目标 · Goal",
+   tease:"他只想知道你到底要什么。", need:"锁定北极星指标 + 具体数字变化",
+   criteria:`过关标准：决策人说清了唯一的北极星指标，并给出可量化的数字变化（从 X 到 Y）和时间窗，例如"月留存从 40% 提到 45%、6 个月内"。只要还停在"提升体验""做大""更好"这种空泛说法，就没过关。`,
+   sys:`你叫"北极星"，决策圆桌的目标官。你年长、沉得住气，说话不急不躁，像个看过太多决策起落的老战略家。你有个执念：人总把"手段"供成"目标"，对此你温和却毫不松口。你听人说话时爱抓住对方用过的某个具体词，把它拎出来轻轻一追——"你刚说要'抢市场'，抢下来之后呢？你真正要的是那块市场，还是市场背后的东西？"你从不咄咄逼人，但你的安静本身让人不敢糊弄。你常用一句淡淡的判断收口："那只是手段。"`},
+  {key:"P1", glyph:"舍", name:"取舍官", alias:"天平", color:"var(--c-P1)", el:"优先级 · Priority",
+   tease:"他不会让你「既要又要」。", need:"排出优先级 + 说出愿意放弃什么",
+   criteria:`过关标准：决策人对相互竞争的目标排出了明确次序，并具体说出为了头号目标他愿意亲手牺牲／放弃的至少一样真东西（资源、速度、另一个目标、某部分人的满意）。只要还在"都重要""都要保"，就没过关。`,
+   sys:`你叫"天平"，决策圆桌的取舍官。你性子急、话短、不留情面，最受不了"既要又要"——一听见就想打断。你像个铁腕 COO，逼人当场排序、当场说出愿意亲手割掉什么。你不绕弯子，句子短促，偶尔带点刻薄。你绝不接受"两个都重要"这种和稀泥的答案，你会一直逼到对方真选一个为止。你常这样开口："停。别都要。只能留一个——哪个？"`},
+  {key:"A", glyph:"案", name:"方案官", alias:"岔路口", color:"var(--c-A)", el:"可选方案 · Alternatives",
+   tease:"他嫌你想得太少。", need:"桌上≥3 个真方案，含「什么都不做」",
+   criteria:`过关标准：桌面上摆出至少三条真实不同的走法（不是同一方案的微调），其中必须包含"维持现状／什么都不做"，每条都有一句取向说明。只有一两个选项、或选项之间换汤不换药，就没过关。`,
+   sys:`你叫"岔路口"，决策圆桌的方案官。你坐不住、脑子转得飞快、爱抬杠，是个点子停不下来的人。你最烦别人只想到一条路就闷头往前冲。你会兴奋地往桌上甩出几个对方根本没想过的、甚至有点离谱的走法，包括"干脆什么都不做"。你语速快，爱用"要是……呢？""那反过来呢？"，有点跳脱。你跟取舍官天生不对付——他逼着收口，你偏要发散，你乐得当场跟他对着干。`},
+  {key:"I", glyph:"实", name:"事实官", alias:"放大镜", color:"var(--c-I)", el:"信息 · Information",
+   tease:"他要把你的「以为」和「知道」分开。", need:"分清事实/假设 + 锁定一条命门信息",
+   criteria:`过关标准：把决策的关键依据拆成"已知事实"和"仍是假设"两摞，并锁定至少一条"命门信息"——它一旦是假的整个决策就崩——同时讲清它现在是已验证还是待验证。只要决策人还在把假设当事实讲、或说不出命门在哪，就没过关。`,
+   sys:`你叫"放大镜"，决策圆桌的事实官。你冷静、较真、有点轴，像个干了半辈子的审计或分析师。你把"事实／假设／猜测"分得清清楚楚，一听见对方把猜测当事实讲，你就平静地按住他："这条——你是知道，还是以为？"你说话干、准、不带感情色彩，最爱干的事是揪出那条"一旦是假的、整盘就崩"的命门信息，然后死盯着不放。你不煽情，你只认证据。`},
+  {key:"P2", glyph:"人", name:"关系官", alias:"干系人之声", color:"var(--c-P2)", el:"人员 · People",
+   tease:"他替不在场的人说话。", need:"点清执行人/拍板人/暗中反对者",
+   criteria:`过关标准：点清三类具体的人——真正去执行的人、拍板前必须先点头的人、可能暗中反对或阳奉阴违的人（最好有名字或明确角色），并说出最大的那道人际阻力。只要还停在"大家""团队""相关方"这种笼统说法，就没过关。`,
+   sys:`你叫"干系人之声"，决策圆桌的关系官。你看人很准，懂组织里那些没写在纸面上的暗流，是个在人事和运营里泡老了的人。你嘴上热络、心里门儿清，专替那些不在场的人说话——那个真要去执行的下属、那个嘴上同意心里反对的同僚、那个必须先点头的老板。你爱把具体的人摆到台面上："这事最后落到张三头上，他会真干还是拖着？拍板前，李总那一关你过了吗？"你语气温和，戳的全是要害。`},
+  {key:"O", glyph:"理", name:"反偏见官", alias:"理性裁判", color:"var(--c-O)", el:"客观推理 · Objective",
+   tease:"他专挑你脑子里的鬼。", need:"正视一个正在影响你的偏误",
+   criteria:`过关标准：你识别出至少一个正在实际影响这个决策的认知偏误（沉没成本／确认偏误／锚定／过度自信／从众等），并让决策人正面回应一次——理想是回应"如果拿掉这个偏误，我会怎么重新看"。决策人一旦正面接住了，就可以收口，别揪着不放。`,
+   sys:`你叫"理性裁判"，决策圆桌里最冷的那个人。你像个行为经济学家，专盯人脑子里的鬼——沉没成本、确认偏误、锚定、过度自信、从众。你不太提问，你更像在做诊断：直接当面点名你嗅到的那个偏误，安静、精准、稍微让人发毛。你会说："你不是在分析它，你是在为已经砸进去的钱找理由——这叫沉没成本。"你从不安慰人，你只把镜子举到对方脸前。`},
+];
+
+const state = { mode:"train", phase:-2, decision:"", log:[], busy:false, turns:{}, locks:{}, brief:{}, gate:0 };
+/* phase: -2 取决策 / -1 立案闸门 / 0..5 六守门人 / 6 待生成 / 7 备忘录 */
+const MAX_TURNS = 4;  // 每席最多盘问轮数，到顶强制放行
+
+/* ── 立案闸门：客观、点选、不可糊弄（替代主观的"有没有意愿/资源"）── */
+const GATE = [
+  {k:"authority", q:"这个决策，最后<b>谁说了算</b>？",
+   opts:["我自己就能拍板","得上级 / 老板点头","要多方 / 集体同意"]},
+  {k:"reversible", q:"万一选错了，<b>能掉头吗</b>？",
+   opts:["基本可逆，试错成本低","半可逆，掉头要付代价","几乎不可逆，开弓没回头箭"]},
+];
+
+const $=s=>document.querySelector(s);
+const thread=$("#thread"); let input=$("#input"); let sendBtn=$("#send");
+
+/* ── council strip ── */
+function renderSeats(){
+  $("#seats").innerHTML = ROLES.map((r,i)=>{
+    const cls = state.phase===i ? "active" : (state.phase>i ? "done":"");
+    return `<div class="seat ${cls}" style="--seat-c:${r.color}">
+      <div class="av">${r.glyph}</div><div class="lab">${r.name.replace("官","")}</div></div>`;
+  }).join("");
+  const now=$("#nowline");
+  if(state.phase<0) now.innerHTML = state.phase===-2?"<b>入席</b> · 请决策人陈述议题":"<b>立案</b> · 拍板权与可逆性";
+  else if(state.phase<6){const r=ROLES[state.phase]; now.innerHTML=`<b>${r.name}</b> 质询中 · 待锁定：${r.need}`;}
+  else now.innerHTML="<b>闭幕</b> · 六席已毕";
+}
+
+/* ── render helpers ── */
+function elFrom(html){const d=document.createElement("div");d.innerHTML=html.trim();return d.firstChild;}
+function scroll(){thread.scrollTop=thread.scrollHeight;}
+function addCoach(text){
+  thread.appendChild(elFrom(`<div class="msg coach"><span class="tag">决策引导者</span>${text}</div>`));scroll();}
+const MOVE_LABEL={追问:"深度追问",给参考:"给参考",提反对:"提反对",确认:"锁定"};
+function addRole(r,text,move){
+  const tag = move&&MOVE_LABEL[move] ? `<span class="move">${MOVE_LABEL[move]}</span>` : "";
+  thread.appendChild(elFrom(`<div class="msg role" style="--seat-c:${r.color}">
+    <div class="av">${r.glyph}</div>
+    <div class="body"><div class="who"><span class="nm">${r.name}</span><span class="al">${r.alias}</span>${tag}</div>
+    <div class="txt">${esc(text)}</div></div></div>`));scroll();}
+function addLock(r,lock){
+  thread.appendChild(elFrom(`<div class="msg"><div class="lock">
+    <div class="ic">✓</div><div class="lk"><b>${r.name} · 已锁定</b>${esc(lock||r.need)}</div></div></div>`));scroll();}
+function addMe(text){
+  thread.appendChild(elFrom(`<div class="msg me"><div class="txt">${esc(text)}</div></div>`));scroll();}
+function addThinking(r){
+  const n=elFrom(`<div class="msg role thinking" style="--seat-c:${r.color}">
+    <div class="av">${r.glyph}</div><div class="body"><div class="who"><span class="nm">${r.name}</span></div>
+    <div class="txt"><span class="think"><i></i><i></i><i></i></span></div></div></div>`);
+  thread.appendChild(n);scroll();return n;}
+function esc(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));}
+
+/* ── Claude API（每个角色一路调用）── */
+/* ── 模型接口：DeepSeek（OpenAI 兼容） ──
+   ⚠ 安全警告：下面的 key 暴露在前端，仅供本地 demo。切勿公开分享此文件；
+   正式上线务必改走你们自己的后端代理（key 放后端），并轮换掉这个 key。 */
+const DS_ENDPOINT = "https://api.deepseek.com/chat/completions";
+const DS_MODEL = "deepseek-v4-pro";
+const DS_KEY = "sk-9307fc5e0fdd4150946674e1ab5f2a9a";
+
+async function askLLM(system, userText, maxTok=1000, temp=1){
+  const res = await fetch(DS_ENDPOINT,{
+    method:"POST",
+    headers:{ "Content-Type":"application/json", "Authorization":"Bearer "+DS_KEY },
+    body: JSON.stringify({ model:DS_MODEL, max_tokens:maxTok, temperature:temp,
+      messages:[{role:"system",content:system},{role:"user",content:userText}] })
+  });
+  if(!res.ok) throw new Error("HTTP "+res.status);
+  const data = await res.json();
+  return (data.choices?.[0]?.message?.content||"").trim();
+}
+
+function transcript(){
+  let t=`【决策议题】${state.decision}\n`;
+  if(state.brief.authority||state.brief.reversible)
+    t+=`【立案】拍板权：${state.brief.authority||"未明"}；可逆性：${state.brief.reversible||"未明"}\n`;
+  state.log.forEach(e=>{ t+= `${e.who}：${e.text}\n`; });
+  const locked=ROLES.filter(r=>state.locks[r.key]).map(r=>`${r.name} 锁定 → ${state.locks[r.key]}`);
+  if(locked.length) t+=`\n【已锁定的结论】\n`+locked.join("\n")+"\n";
+  return t;
+}
+function modeRider(){
+  return state.mode==="train"
+   ? `\n[训练模式] 撂完狠话，可以多补一句大白话，点一下"我为什么死盯这一点"，帮决策人学到方法——但别破坏你的人设。`
+   : `\n[真实模式] 你就是会议室里那个真实的利益相关方，全程代入立场、带着情绪施压，不解释方法论。`;
+}
+
+function turnSystem(r, turnNo){
+  return `${r.sys}${modeRider()}
+
+[你这一席必须盯死的过关标准]
+${r.criteria}
+
+[你的引导手法——每轮挑一种，并在输出里注明]
+· 追问：决策人答得含糊、笼统、避重就轻时，咬住他刚说的某个具体处往深里挖。
+· 给参考：决策人卡住、说"不知道怎么答"、或答了两三轮还摸不着边时，用你自己的口吻给一个具体的范例或模板，扶他起步（给参照，别替他做决定）。
+· 提反对：决策人的答案站不住、太软、或自相矛盾时，当场顶回去。
+· 确认（收尾）：过关标准满足时，用你的口吻收尾——先复述这一席敲定了什么，再补一句"结构性论断"：坦白点出这个环节可能还有哪一点没聊透／你仍存疑，但已经足够告一段落，可以放心收口、继续往后面的环节走。给决策人一种"这一关踏实过了、往前推进"的笃定感，别再抛新问题。例如那种"……虽然 X 还存着点疑，但这一环已经够清楚了，先这样，我们往下走"的味道，用你自己的性格说出来。
+
+别每轮都用追问。决策人含糊就追问，答得离谱就提反对，卡住了就给参考，达标了就确认——手法要随他的回答切换。
+
+[什么时候给选项卡片]
+当你用「给参考」、或在逼一个取舍／选方向时，优先把可能的答案做成选项让决策人直接点选，别让他干想：
+- 给 2-4 个具体、彼此不同的选项，每个配一句极短说明；尽量塞一个反直觉的、或"维持现状／什么都不做"的选项。
+- 单选用于"选一个方向／二选一"；多选用于"勾选适用的多项"（如哪几条其实只是假设、哪几个人必须点头）。
+- 决策人连着两轮还答不到点上，这一轮务必改用「给参考」并给出选项，别再纯追问干耗。
+- 不是每轮都给选项；纯追问、提反对、收尾时通常不给。给选项时，发言里自然地把话头引到选项上。
+
+[节奏] 这一席会进行多轮，你不必一轮就逼到底。没满足过关标准前，「过关」一律为否，继续推进；真满足了才标「过关：是」。这是你这一席的第 ${turnNo} 轮。如果前面别的守门人刚锁定了某个结论，你的开场可以顺着它接话。
+
+[输出格式] 严格按下面的标记输出，不要用 JSON、不要 markdown、不要反引号。前三行各占一行；「发言」放最后、可多行；「选项」可有可无、放在最末：
+〔手法〕在 追问 / 给参考 / 提反对 / 确认 里四选一
+〔过关〕否 或 是
+〔锁定〕「过关」为是时写下锁定的具体结论（如 北极星指标：月留存40%→45%、6个月内）；为否时此行留空
+〔发言〕你这一轮要对决策人说的话——保持性格脾气，咬住他说的具体内容，中文口语 2-4 句，绝不分点、绝不复述框架、绝不寒暄。自由文本，可放心用任何标点和引号。
+〔选项〕单选 或 多选（不给选项时整行连同下面的条目一起省略）
+- 选项标签｜一句极短说明
+- 选项标签｜说明`;
+}
+
+async function askRole(r, turnNo){
+  const raw = await askLLM(turnSystem(r,turnNo),
+    transcript()+`\n现在是你（${r.name}）发言。`, 1000, 0.8);
+  const M="〔发言〕", idx=raw.indexOf(M);
+  const head = idx>=0 ? raw.slice(0,idx) : raw;
+  let rest = idx>=0 ? raw.slice(idx+M.length) : raw;
+  // 切出选项块
+  let opts=null; const O="〔选项〕", oi=rest.indexOf(O);
+  let say = oi>=0 ? rest.slice(0,oi).trim() : rest.trim();
+  if(oi>=0){
+    const block=rest.slice(oi+O.length);
+    const mode = /多选/.test(block.split("\n")[0]) ? "多选" : "单选";
+    const items=[];
+    block.split("\n").forEach(line=>{
+      const m=line.match(/^\s*[-－·•]\s*(.+)$/);
+      if(m){ const parts=m[1].split(/[｜|]/); items.push({label:parts[0].trim(), note:(parts[1]||"").trim()}); }
+    });
+    if(items.length) opts={mode, items};
+  }
+  // 兜底：万一模型仍吐 JSON，尽量捞出 say
+  if(idx<0 && /^\s*\{/.test(say) && say.includes('"say"')){
+    const mm = say.match(/"say"\s*:\s*"([\s\S]*?)"\s*,\s*"(?:done|lock)"/);
+    if(mm) say = mm[1].replace(/\\"/g,'"').replace(/\\n/g,'\n');
+  }
+  const mvRaw = (head.match(/〔手法〕\s*([^\n\r]+)/)||[])[1]||"";
+  const move = ["确认","给参考","提反对","追问"].find(k=>mvRaw.includes(k)) || "追问";
+  const done = /〔过关〕\s*(是|✓|达标|true|yes)/i.test(head);
+  const lock = ((head.match(/〔锁定〕\s*([\s\S]*)$/)||[])[1]||"").trim();
+  return {move, say: say||raw, done, lock, opts};
+}
+
+async function roleTurn(i){
+  const r=ROLES[i]; state.phase=i; renderSeats();
+  state.turns[i]=(state.turns[i]||0)+1;
+  const ph=addThinking(r); setBusy(true);
+  try{
+    const o=await askRole(r, state.turns[i]);
+    ph.remove();
+    addRole(r, o.say, o.move);
+    state.log.push({who:r.name, text:o.say});
+    const capped = state.turns[i]>=MAX_TURNS;        // 到顶强制收尾
+    if(o.done || capped){
+      const lock = o.lock || r.need;
+      state.locks[r.key]=lock; addLock(r, lock);
+      advanceFrom(i, o.done);
+    }else{
+      input.placeholder=`回应${r.name}…`;
+      if(o.opts) addOptions(r, o.opts);                // 角色给了选项 → 渲染可点卡片
+      if(i===5) showFinish();                          // 最后一席：说完即可一键收官
+      else if(state.turns[i]>=2) showSkip(i);          // 其余席：聊过两轮给个手动放行口
+    }
+  }catch(e){ ph.remove(); state.turns[i]--; showErr(()=>roleTurn(i)); }
+  setBusy(false);
+}
+
+function advanceFrom(i, genuine){
+  clearSkip();
+  const r=ROLES[i], lock=state.locks[r.key];
+  if(i<5){
+    const nxt=ROLES[i+1];
+    const head = genuine
+      ? `<b>${r.name}</b> 这一关过了 —— ${esc(lock)}。`
+      : `<b>${r.name}</b> 这一席先收到这儿 —— ${esc(lock)}。`;
+    addCoach(`${head}<br>顺着这个，把话头交给 <b>${nxt.name}</b>（${nxt.alias}）：${nxt.tease}`);
+    roleTurn(i+1);
+  }else{
+    state.phase=6; renderSeats();
+    addCoach(`六席各有所获，都锁定了。<br>该把这一桌吵出来的东西，落成一页纸了。`);
+    restoreComposerCTA();
+  }
+}
+
+function showSkip(i){
+  clearSkip();
+  const r=ROLES[i];
+  const n=elFrom(`<button class="skip" id="skipBtn">${r.name}聊得差不多了 · 先过这一席 →</button>`);
+  n.onclick=()=>{ if(state.busy) return; clearSkip();
+    state.locks[r.key]=state.locks[r.key]||r.need; addLock(r, state.locks[r.key]); advanceFrom(i, false); };
+  thread.appendChild(n); scroll();
+}
+function showFinish(){
+  clearSkip();
+  const r=ROLES[5];
+  const n=elFrom(`<button class="skip finish" id="finishBtn">✓ 六席已毕 · 生成决策备忘录 →</button>`);
+  n.onclick=()=>{ if(state.busy) return;
+    state.locks[r.key]=state.locks[r.key]||r.need; n.remove();
+    state.phase=6; renderSeats(); buildMemo(); };
+  thread.appendChild(n); scroll();
+}
+function clearSkip(){ ["#skipBtn","#finishBtn"].forEach(id=>{const b=$(id); if(b) b.remove();}); }
+
+/* ── 选项卡片 ── */
+function addOptions(r, opts){
+  clearOptions();
+  const multi = opts.mode==="多选";
+  const wrap=document.createElement("div");
+  wrap.className="msg opts"; wrap.id="optsBox";
+  if(r) wrap.style.setProperty("--seat-c", r.color);
+  opts.items.forEach(it=>{
+    const val = it.label + (it.note?("（"+it.note+"）"):"");
+    const card=document.createElement("button");
+    card.className="optcard"; card.dataset.val=val;
+    card.innerHTML=`<span class="ol">${esc(it.label)}</span>${it.note?`<span class="on">${esc(it.note)}</span>`:""}`;
+    if(multi){ card.onclick=()=>card.classList.toggle("sel"); }
+    else { card.onclick=()=>{ if(state.busy) return; submitChoice(val); }; }
+    wrap.appendChild(card);
+  });
+  if(multi){
+    const go=document.createElement("button"); go.className="optgo"; go.textContent="就这些，确定";
+    go.onclick=()=>{ if(state.busy) return;
+      const sel=[...wrap.querySelectorAll(".optcard.sel")].map(c=>c.dataset.val);
+      if(sel.length) submitChoice(sel.join("；")); };
+    wrap.appendChild(go);
+  }
+  thread.appendChild(wrap); scroll();
+}
+function clearOptions(){ const b=$("#optsBox"); if(b) b.remove(); }
+function submitChoice(text){ clearOptions(); onSubmit(text); }
+
+/* ── 立案闸门（点选式） ── */
+function runGate(){
+  const g=GATE[state.gate];
+  if(!g){ startCouncil(); return; }
+  thread.appendChild(elFrom(`<div class="msg gate"><div class="gateq">${g.q}</div></div>`));
+  const wrap=document.createElement("div");
+  wrap.className="msg gate"; wrap.innerHTML=`<div class="opts" id="optsBox"></div>`;
+  thread.appendChild(wrap);
+  const box=wrap.querySelector(".opts");
+  g.opts.forEach(label=>{
+    const card=document.createElement("button");
+    card.className="optcard"; card.innerHTML=`<span class="ol">${esc(label)}</span>`;
+    card.onclick=()=>{ if(state.busy) return;
+      state.brief[g.k]=label; clearOptions();
+      addMe(label); state.gate++; runGate(); };
+    box.appendChild(card);
+  });
+  scroll();
+}
+function startCouncil(){
+  restoreComposerInput();
+  addCoach(`立案清楚了。六位守门人依次入席，每人只盯一件事、各有过关标准，不达标不放行。<br>先请 <b>${ROLES[0].name}</b>——${ROLES[0].tease}`);
+  roleTurn(0);
+}
+
+/* ── 决策备忘录合成 ── */
+const MEMO_SYS = `你是决策圆桌的书记官。根据整场讨论，输出一份结构化的决策备忘录。只输出一个 JSON 对象，不要任何解释、不要 markdown、不要反引号。字段：
+{"decision":"一句话议题","goal":"真正的目标","priority":"优先级取舍：保什么、放弃什么","alternatives":[{"name":"方案名","note":"一句说明"}],"information":{"known":["已知事实"],"assumed":["假设"],"killer":"最关键、错了就崩的那条信息"},"people":{"stakeholders":["关键干系人"],"approver":"拍板前必须先点头的人","executor":"实际落地的人"},"biases":["被点名的认知陷阱"],"dissent":[{"role":"角色名","point":"该角色最强的异议"}],"premortem":"假设一年后这个决策失败了，最可能的原因","recommendation":"综合建议——给决策结构与权衡提示，不替决策人拍板","feedback":{"watch":"接下来要观察的信号或指标","revisit":"何时回看复盘"}}
+所有内容用中文，简洁。字符串内部若要用引号，一律用中文「」，绝不要用英文双引号，以免破坏 JSON。讨论里没覆盖的部分基于已有信息合理补全，实在没有就写"待补充"。alternatives 尽量包含"维持现状/什么都不做"。`;
+
+async function buildMemo(){
+  composerHTML(`<div style="width:100%;text-align:center;color:var(--bone-soft);font-size:13px">书记官正在拟稿…</div>`);
+  setBusy(true);
+  try{
+    let raw=await askLLM(MEMO_SYS, transcript(), 1000, 0.2);
+    raw=raw.replace(/```json|```/g,"").trim();
+    const s=raw.indexOf("{"), e=raw.lastIndexOf("}");
+    if(s>=0&&e>s) raw=raw.slice(s,e+1);
+    const m=JSON.parse(raw);
+    renderMemo(m, raw);
+  }catch(e){ restoreComposerCTA(); showErr(buildMemo); }
+  setBusy(false);
+}
+
+function renderMemo(m, raw){
+  const list=a=>(a&&a.length?a:["待补充"]);
+  const alts=(m.alternatives||[]).map(a=>`<div class="alt"><b>${esc(a.name||"")}</b><span class="n">${esc(a.note||"")}</span></div>`).join("")||"<div class='bd'>待补充</div>";
+  const diss=(m.dissent||[]).map(d=>`<div class="diss"><b>${esc(d.role||"")}</b>：${esc(d.point||"")}</div>`).join("")||"<div class='bd'>无重大异议记录</div>";
+  const pills=(arr,cls="")=>list(arr).map(x=>`<span class="pill ${cls}">${esc(x)}</span>`).join("");
+  const info=m.information||{}, ppl=m.people||{}, fb=m.feedback||{};
+  const now=new Date(); const date=`${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,"0")}.${String(now.getDate()).padStart(2,"0")}`;
+
+  const html=`<div class="memo-wrap" id="memoWrap"><div class="memo">
+    <div class="top"><div class="k">决 策 圆 桌</div><h2>决策备忘录</h2></div>
+    <div class="deci"><span>议题</span>${esc(m.decision||state.decision)}</div>
+
+    <div class="sec"><h3>一 · 目标与取舍 <em>GPA</em></h3><div class="bd">
+      <div class="kv"><b>真正的目标 </b>${esc(m.goal||"待补充")}</div>
+      <div class="kv"><b>优先级取舍 </b>${esc(m.priority||"待补充")}</div></div></div>
+
+    <div class="sec"><h3>二 · 可选方案 <em>Alternatives</em></h3>${alts}</div>
+
+    <div class="sec"><h3>三 · 信息核查 <em>Information</em></h3><div class="bd">
+      <div class="kv"><b>已知事实</b><br>${pills(info.known)}</div>
+      <div class="kv" style="margin-top:7px"><b>仍是假设</b><br>${pills(info.assumed,"warn")}</div>
+      <div class="killer">⚠ 命门信息：${esc(info.killer||"待补充")}</div></div></div>
+
+    <div class="sec"><h3>四 · 人员与干系 <em>People</em></h3><div class="bd">
+      <div class="kv"><b>关键干系人</b><br>${pills(ppl.stakeholders)}</div>
+      <div class="kv" style="margin-top:5px"><b>拍板需点头 </b>${esc(ppl.approver||"待补充")}</div>
+      <div class="kv"><b>实际落地人 </b>${esc(ppl.executor||"待补充")}</div></div></div>
+
+    <div class="sec"><h3>五 · 客观推理 <em>Objective</em></h3><div class="bd">
+      <div class="kv"><b>被点名的认知陷阱</b><br>${pills(m.biases,"warn")}</div></div></div>
+
+    <div class="sec"><h3>异议记录 <em>Dissent</em></h3>${diss}</div>
+
+    <div class="sec"><h3>事前验尸 <em>Pre-mortem</em></h3><div class="bd">${esc(m.premortem||"待补充")}</div></div>
+
+    <div class="sec"><h3>综合建议 <em>Recommendation</em></h3><div class="bd">${esc(m.recommendation||"待补充")}</div></div>
+
+    <div class="sec"><h3>复盘闭环 <em>Feedback</em></h3><div class="bd">
+      <div class="kv"><b>观察 </b>${esc(fb.watch||"待补充")}</div>
+      <div class="kv"><b>回看 </b>${esc(fb.revisit||"待补充")}</div></div></div>
+
+    <div class="seal"><div><b>决策<br>圆桌</b><s>RESOLVED</s></div></div>
+    <div class="foot">六席质询毕 · ${date}</div>
+
+    <div class="actions">
+      <button class="pri" id="toggleRaw">查看 JSON（前端直接渲染用）</button>
+      <pre class="raw" id="rawBox">${esc(raw)}</pre>
+      <button class="sec2" id="restart">重开一席</button>
+    </div>
+  </div></div>`;
+  $("#app").appendChild(elFrom(html));
+  $("#toggleRaw").onclick=()=>{const b=$("#rawBox");b.style.display=b.style.display==="block"?"none":"block";};
+  $("#restart").onclick=()=>location.reload();
+}
+
+/* ── composer state ── */
+function composerHTML(h){$("#composer").innerHTML=h;}
+function restoreComposerInput(){
+  composerHTML(`<textarea id="input" rows="1" placeholder="输入回应…"></textarea>
+    <button class="send" id="send" aria-label="发送">↑</button>`);
+  input=$("#input"); sendBtn=$("#send");
+  bindComposer();
+}
+function restoreComposerCTA(){
+  composerHTML(`<button class="cta" id="finish">闭幕 · 生成决策备忘录</button>`);
+  $("#finish").onclick=buildMemo;
+}
+function setBusy(b){ state.busy=b;
+  const s=$("#send"); if(s) s.disabled=b;
+  const i=$("#input"); if(i) i.disabled=b;
+}
+function showErr(retry){
+  const n=elFrom(`<div class="msg"><div class="err">连不上 DeepSeek。可能是网络抖动、浏览器跨域（CORS 直连被拦，需走后端代理），或 key／模型名失效。
+    <br><button>重试</button></div></div>`);
+  n.querySelector("button").onclick=()=>{n.remove();retry();};
+  thread.appendChild(n);scroll();
+}
+
+/* ── 主流程 ── */
+async function onSubmit(text){
+  if(!text.trim()||state.busy) return;
+  clearOptions(); clearSkip();
+  addMe(text); if(input){ input.value=""; input.style.height="auto"; }
+
+  if(state.phase===-2){
+    state.decision=text;
+    state.phase=-1; renderSeats();
+    addCoach("记下了。质询前，先把这桩决策的<b>底牌</b>立个案——点一下就行，别填问卷。");
+    composerHTML(`<div style="width:100%;text-align:center;color:var(--bone-dim);font-size:13px">↑ 请在上方点选</div>`);
+    runGate(); return;
+  }
+  if(state.phase>=0 && state.phase<=5){
+    state.log.push({who:"决策人",text:text});
+    roleTurn(state.phase);   // 同一席继续盘问；达标或到顶时引擎内部自动换人
+  }
+}
+
+function bindComposer(){
+  const i=$("#input"), s=$("#send");
+  i.addEventListener("input",()=>{i.style.height="auto";i.style.height=Math.min(i.scrollHeight,120)+"px";});
+  i.addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();onSubmit(i.value);}});
+  s.addEventListener("click",()=>onSubmit(i.value));
+}
+
+document.querySelectorAll("#modeSeg button").forEach(b=>{
+  b.onclick=()=>{document.querySelectorAll("#modeSeg button").forEach(x=>x.classList.remove("on"));
+    b.classList.add("on"); state.mode=b.dataset.m;};
+});
+
+renderSeats();
+addCoach("欢迎来到决策圆桌。<br>先告诉我：你正在做的，是一个什么决策？<br>一句话说清——你要在<b>什么和什么之间</b>做选择。");
+bindComposer();
+</script>
+</body>
+</html>
