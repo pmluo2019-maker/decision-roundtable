@@ -315,7 +315,7 @@ function esc(s){return s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"
    正式上线务必改走你们自己的后端代理（key 放后端），并轮换掉这个 key。 */
 const DS_ENDPOINT = "https://api.deepseek.com/chat/completions";
 const DS_MODEL = "deepseek-v4-pro";
-const DS_KEY = "sk-9307fc5e0fdd4150946674e1ab5f2a9a";
+const DS_KEY = "sk-3ce23f3b101e4e0f86be0e47cef25a88";
 
 async function askLLM(system, userText, maxTok=1000, temp=1){
   const res = await fetch(DS_ENDPOINT,{
